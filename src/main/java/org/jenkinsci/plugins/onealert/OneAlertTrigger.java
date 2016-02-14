@@ -17,11 +17,16 @@ import org.kohsuke.stapler.QueryParameter;
 
 import javax.servlet.ServletException;
 import java.io.IOException;
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
+import java.io.OutputStream;
+import java.net.HttpURLConnection;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-
+import org.json.JSONObject;
+import java.net.URL;
 /**
  * Sample {@link Builder}.
  *
@@ -99,8 +104,60 @@ public class OneAlertTrigger extends Notifier {
         // }
         EnvVars env = build.getEnvironment(listener);
         if (validWithPreviousResults(build, resultProbe, numPreviousBuildsToProbe)) {
-            listener.getLogger().println("Triggering OneAlert Notification");
+            listener.getLogger().println("Triggering OneAlert Notification begin");
             // triggerPagerDuty(listener, env);
+// curl -H "Content-type: application/json" -X POST     -d '{
+//  "app": "f08d3599-c250-7fb7-2b93-46427a411012",
+//  "eventId": "12345",
+//  "eventType": "trigger",
+//  "alarmName": "FAILURE for production/HTTP on machine 192.168.0.253",
+//  "entityName": "host-192.168.0.253",
+//  "entityId": "host-192.168.0.253",
+//  "priority": 1,
+//  "alarmContent": {
+//  "ping time": "1500ms",
+//  "load avg": 0.75}
+//  }'    "http://api.110monitor.com/alert/api/event"            
+            JSONObject alert = new JSONObject();
+            JSONObject content = new JSONObject();
+            alert.put("app","f08d3599-c250-7fb7-2b93-46427a411012");
+            alert.put("eventId", "12345");
+            alert.put("eventType", "trigger");
+            alert.put("alarmName", "FAILURE for Jenkins");
+            alert.put("entityName", "project build_arp");
+            alert.put("entityId", "build_arp_id");
+            alert.put("priority", 1);
+            content.put("build time", 123);
+            // alert.put("alarmContent", content);
+            listener.getLogger().println(alert.toString());
+            try {
+
+                URL url = new URL("http://api.110monitor.com/alert/api/event");
+                HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+                conn.setDoOutput(true);
+                conn.setRequestMethod("POST");
+                conn.setRequestProperty("Content-Type", "application/json");
+
+                // byte[] outputBytes = alert.getBytes("UTF-8");
+                OutputStream os = conn.getOutputStream();
+                
+                os.write(alert.toString().getBytes("UTF-8"));
+                os.flush();
+
+                // if (conn.getResponseCode() != HttpURLConnection.HTTP_CREATED) {
+                //     throw new RuntimeException("Failed : HTTP error code : " + conn.getResponseCode());
+                // }
+
+                BufferedReader br = new BufferedReader(new InputStreamReader((conn.getInputStream())));
+                String output;
+                while ((output = br.readLine()) != null) {
+                    listener.getLogger().println(output);
+                }
+                conn.disconnect();
+            } catch (Exception e) {
+                e.printStackTrace();
+                listener.getLogger().println(e);
+            }
         }
         return true;
     }
